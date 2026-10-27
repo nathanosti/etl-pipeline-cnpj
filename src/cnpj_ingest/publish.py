@@ -23,6 +23,37 @@ TABLES = {
 }
 
 
+# Views planas para o Looker Studio / Power BI: sem ARRAY, com campos prontos para filtro e mapa.
+VIEWS = {
+    "vw_leads": """
+        select
+            cnpj, razao_social, nome_fantasia, matriz_filial, situacao_cadastral, is_ativa,
+            match_tipo, array_to_string(cnaes_alvo, ', ') as cnaes_alvo,
+            cnae_principal, cnae_principal_descricao, porte, capital_social, natureza_juridica,
+            opcao_simples, opcao_mei, data_inicio_atividade,
+            extract(year from data_inicio_atividade) as ano_abertura,
+            logradouro, numero, complemento, bairro, cep,
+            uf, concat('BR-', uf) as uf_iso, initcap(municipio) as municipio,
+            concat(initcap(municipio), ' - ', uf) as municipio_uf,
+            telefone_1, telefone_2, email,
+            email is not null as tem_email,
+            (telefone_1 is not null or telefone_2 is not null) as tem_telefone,
+            ref_month
+        from `{dataset}.leads_agro`
+    """,
+    # uma linha por (lead, CNAE alvo): para gráficos "por CNAE" sem dupla contagem escondida
+    "vw_leads_cnae": """
+        select
+            l.cnpj, l.razao_social, l.situacao_cadastral, l.is_ativa, l.uf, l.porte,
+            c as cnae_alvo, a.rotulo as cnae_alvo_rotulo,
+            if(c = l.cnae_principal, 'principal', 'secundario') as cnae_alvo_como,
+            l.ref_month
+        from `{dataset}.leads_agro` l, unnest(l.cnaes_alvo) c
+        left join `{dataset}.cnaes_alvo` a on a.cnae = c
+    """,
+}
+
+
 @dataclass(frozen=True)
 class Published:
     table_id: str
@@ -83,5 +114,12 @@ def publish(db_path: Path, work_dir: Path, project: str, dataset: str, location:
         log.info("publicado %s: %d linhas%s", table_id, table.num_rows,
                  f" (expira em {table.expires:%d/%m/%Y})" if table.expires else "")
         results.append(Published(table_id, table.num_rows))
+
+    for name, sql in VIEWS.items():
+        view = bigquery.Table(f"{project}.{dataset}.{name}")
+        view.view_query = sql.format(dataset=f"{project}.{dataset}")
+        client.delete_table(view, not_found_ok=True)
+        client.create_table(view)
+        log.info("view %s.%s.%s atualizada", project, dataset, name)
     shutil.rmtree(work_dir, ignore_errors=True)
     return results
