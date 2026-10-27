@@ -73,7 +73,25 @@ do DuckDB para Parquet e carrega no BigQuery com load jobs (gratuitos, `WRITE_TR
 - Autentica com a **conta ativa do `gcloud`** (`gcloud auth login`), não com as Application
   Default Credentials, que podem estar em outra conta. Para fixar a conta: `bq_account` no settings.
 - No Sandbox as tabelas expiram em **60 dias**; cada `make publish` recria e renova o prazo.
-- No Looker Studio: Adicionar dados → BigQuery → `echo-lead` → `gold` → `leads_agro`.
+- Também cria as views `vw_leads` (sem ARRAY, com `uf_iso` para mapa) e `vw_leads_cnae`
+  (uma linha por lead × CNAE alvo), pensadas para Looker Studio / Power BI.
+
+## Compartilhar o painel
+
+**Looker Studio** (sem código): lookerstudio.google.com → Criar → Fonte de dados → BigQuery →
+`echo-lead` → `gold` → `vw_leads`. Deixe a credencial como "Proprietário" para quem recebe o
+link não precisar de acesso ao BigQuery. Compartilhe o relatório por e-mail.
+
+**Streamlit Community Cloud** (o mesmo painel deste repo, 1 app privado grátis):
+
+1. `bash scripts/setup_streamlit_sa.sh` — cria a conta de serviço só-leitura no dataset `gold`
+   e gera `data/secrets/streamlit_secrets.toml` (fora do Git).
+2. share.streamlit.io → entrar com o GitHub → Create app → repo `etl-pipeline-cnpj`, branch
+   `main`, arquivo `dashboard/app.py`; em Advanced settings: Python 3.12 e cole o conteúdo do
+   `streamlit_secrets.toml` em Secrets.
+3. No app: Share → convide os e-mails do time (o app herda o privado do repositório).
+
+Com os secrets presentes o painel lê do BigQuery; sem eles, do DuckDB local.
 
 ## Observações sobre os dados
 

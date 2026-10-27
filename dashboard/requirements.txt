@@ -1,0 +1,9 @@
+# Dependências do painel no Streamlit Community Cloud (lê a gold no BigQuery)
+streamlit>=1.40
+plotly>=5.24
+pandas>=2.2
+duckdb>=1.1
+google-cloud-bigquery>=3.25
+google-cloud-bigquery-storage>=2.25
+db-dtypes>=1.2
+pyarrow>=17

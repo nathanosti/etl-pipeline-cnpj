@@ -1,6 +1,8 @@
-"""Painel local de prospecção agro (Streamlit), lendo a gold do DuckDB.
+"""Painel de prospecção agro (Streamlit).
 
-    make dash   ->  http://localhost:8501
+Duas fontes, mesma gold:
+- local (padrão): DuckDB em data/warehouse.duckdb      ->  make dash, http://localhost:8501
+- nuvem (Streamlit Community Cloud): BigQuery, quando os secrets têm [gcp_service_account]
 """
 
 import os
@@ -26,19 +28,54 @@ TIPO_CORES = {"Principal": SERIES[0], "Secundário": SERIES[1]}
 
 
 # ---------------------------------------------------------------- dados
+def _bq_settings() -> dict | None:
+    try:
+        if "gcp_service_account" in st.secrets:
+            return {"sa": dict(st.secrets["gcp_service_account"]),
+                    "dataset": st.secrets.get("bq_dataset", "echo-lead.gold")}
+    except Exception:  # sem secrets.toml: modo local
+        pass
+    return None
+
+
+BQ = _bq_settings()
+
+
+@st.cache_resource
+def _bq_client():
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
+
+    creds = service_account.Credentials.from_service_account_info(BQ["sa"])
+    return bigquery.Client(project=creds.project_id, credentials=creds)
+
+
 def _query(sql: str, params: list | None = None) -> pd.DataFrame:
+    """SQL com `{gold}`/`{ref}` no lugar dos schemas e `?` como parâmetro posicional."""
+    if BQ:
+        from google.cloud import bigquery
+
+        sql = sql.format(gold=f"`{BQ['dataset']}`", ref=f"`{BQ['dataset']}`")
+        cfg = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter(None, "STRING", p) for p in (params or [])
+        ])
+        return _bq_client().query(sql, job_config=cfg).to_dataframe()
     # conexão curta e read-only: não bloqueia o `make dbt` enquanto o painel está aberto
     with duckdb.connect(str(DB_PATH), read_only=True) as con:
-        return con.execute(sql, params or []).df()
+        return con.execute(sql.format(gold="gold", ref="ref"), params or []).df()
 
 
-@st.cache_data(show_spinner="Carregando leads…")
+@st.cache_data(show_spinner="Carregando leads…", ttl="6h")
 def load_leads() -> tuple[pd.DataFrame, dict[str, str]]:
-    df = _query("select * from gold.leads_agro")
-    rotulos = dict(_query("select cnae, rotulo from ref.cnaes_alvo").itertuples(index=False))
+    df = _query("select * from {gold}.leads_agro")
+    rotulos = dict(_query("select cnae, rotulo from {ref}.cnaes_alvo").itertuples(index=False))
     df["tipo"] = df["match_tipo"].map({"principal": "Principal", "secundario": "Secundário"})
     df["cnaes_alvo"] = df["cnaes_alvo"].apply(list)
-    df["ano_abertura"] = pd.to_datetime(df["data_inicio_atividade"]).dt.year
+    df["cnaes_secundarios"] = df["cnaes_secundarios"].apply(list)
+    for col in ("data_inicio_atividade", "data_situacao_cadastral"):
+        df[col] = pd.to_datetime(df[col].astype("string"), errors="coerce")
+    df["capital_social"] = df["capital_social"].astype(float)
+    df["ano_abertura"] = df["data_inicio_atividade"].dt.year
     df["municipio_uf"] = df["municipio"].str.title() + " - " + df["uf"]
     df["tem_email"] = df["email"].notna()
     df["tem_telefone"] = df["telefone_1"].notna() | df["telefone_2"].notna()
@@ -49,7 +86,7 @@ def load_leads() -> tuple[pd.DataFrame, dict[str, str]]:
 def load_socios(cnpj_basico: str) -> pd.DataFrame:
     return _query(
         "select nome_socio, qualificacao, tipo_socio, faixa_etaria, data_entrada_sociedade "
-        "from gold.leads_socios where cnpj_basico = ? order by data_entrada_sociedade",
+        "from {gold}.leads_socios where cnpj_basico = ? order by data_entrada_sociedade",
         [cnpj_basico],
     )
 
@@ -99,7 +136,7 @@ def chart(fig, height: int = 380):
 
 
 # ---------------------------------------------------------------- filtros
-if not DB_PATH.exists():
+if not BQ and not DB_PATH.exists():
     st.error(f"Banco não encontrado em `{DB_PATH}`. Rode `make ingest` e `make dbt` antes.")
     st.stop()
 

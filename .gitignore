@@ -8,3 +8,5 @@ dbt/dbt_packages/
 logs/
 .DS_Store
 dbt/.user.yml
+.streamlit/secrets.toml
+*.json.key
