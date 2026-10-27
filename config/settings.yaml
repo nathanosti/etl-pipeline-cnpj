@@ -15,3 +15,10 @@ convert_workers: 4
 
 # Apaga o zip depois de convertido com sucesso (economiza ~8 GB por mês)
 delete_zips_after_convert: false
+
+# Publicação da gold no BigQuery (`make publish`). Autentica com a conta do `gcloud`
+# (bq_account vazio = conta ativa do gcloud), não com as Application Default Credentials.
+bq_project: echo-lead
+bq_dataset: gold
+bq_location: southamerica-east1
+bq_account:

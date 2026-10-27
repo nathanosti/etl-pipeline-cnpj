@@ -20,7 +20,8 @@ Receita (WebDAV, zips mensais ~7,8 GB)
   └─ Streamlit ─► dashboard/app.py  (painel local, lê a gold)
 ```
 
-Próximo passo: publicar só a gold no BigQuery Sandbox (gratuito) para Looker Studio / Power BI.
+A gold também é publicada no BigQuery Sandbox (gratuito, projeto `echo-lead`, dataset `gold`,
+`southamerica-east1`) para Looker Studio / Power BI: `make publish`.
 O desenho completo para quando houver GCP com billing está em [docs/PLANO_ETL_GCP.md](docs/PLANO_ETL_GCP.md).
 
 ## Uso
@@ -36,6 +37,7 @@ make ingest         # mês completo mais recente (ou MONTH=2026-10)
 make dbt            # silver + gold + testes
 make status         # arquivos do mês e status no manifesto
 make dash           # painel local em http://localhost:8501
+make publish        # envia a gold para o BigQuery (config/settings.yaml)
 ```
 
 A ingestão é idempotente: o manifesto `data/ops/ingestion_files.json` guarda etag/tamanho
@@ -62,6 +64,16 @@ uv run python -c "import duckdb; print(duckdb.connect('data/warehouse.duckdb', r
 
 O painel abre o DuckDB em modo leitura só durante cada consulta, então dá para rodar
 `make dbt` com ele aberto (depois, recarregue o cache com a tecla `C` no painel).
+
+## BigQuery (`make publish`)
+
+Exporta `gold.leads_agro`, `gold.agg_leads_uf_municipio`, `gold.leads_socios` e `ref.cnaes_alvo`
+do DuckDB para Parquet e carrega no BigQuery com load jobs (gratuitos, `WRITE_TRUNCATE`).
+
+- Autentica com a **conta ativa do `gcloud`** (`gcloud auth login`), não com as Application
+  Default Credentials, que podem estar em outra conta. Para fixar a conta: `bq_account` no settings.
+- No Sandbox as tabelas expiram em **60 dias**; cada `make publish` recria e renova o prazo.
+- No Looker Studio: Adicionar dados → BigQuery → `echo-lead` → `gold` → `leads_agro`.
 
 ## Observações sobre os dados
 

@@ -1,7 +1,7 @@
 export CNPJ_DATA_DIR ?= $(CURDIR)/data
 DBT_FLAGS = --project-dir dbt --profiles-dir dbt
 
-.PHONY: setup test ingest ingest-smoke dbt pipeline dash status
+.PHONY: setup test ingest ingest-smoke dbt pipeline publish dash status
 
 setup:
 	uv sync
@@ -21,6 +21,10 @@ dbt:
 	uv run dbt build $(DBT_FLAGS) --full-refresh $(if $(MONTH),--vars '{ref_month: "$(MONTH)"}')
 
 pipeline: ingest dbt
+
+# Envia a gold para o BigQuery (projeto/dataset em config/settings.yaml)
+publish:
+	uv run --group publish cnpj-ingest publish
 
 # Painel local em http://localhost:8501
 dash:

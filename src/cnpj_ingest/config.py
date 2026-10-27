@@ -16,6 +16,10 @@ class Settings:
     download_workers: int = 4
     convert_workers: int = 4
     delete_zips_after_convert: bool = False
+    bq_project: str | None = None
+    bq_dataset: str = "gold"
+    bq_location: str = "southamerica-east1"
+    bq_account: str | None = None
 
     @property
     def landing_dir(self) -> Path:

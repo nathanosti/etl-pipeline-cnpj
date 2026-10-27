@@ -21,6 +21,9 @@ dev = [
     "pytest>=8",
     "dbt-duckdb>=1.9",
 ]
+publish = [
+    "google-cloud-bigquery>=3.25",
+]
 dash = [
     "streamlit>=1.40",
     "plotly>=5.24",

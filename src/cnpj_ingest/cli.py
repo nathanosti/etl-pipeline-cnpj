@@ -71,6 +71,26 @@ def files(month: str = typer.Option(None, help="YYYY-MM (padrão: mês completo 
     typer.echo(f"Total: {_gb(sum(f.size or 0 for f in remote))}")
 
 
+@app.command()
+def publish(
+    project: str = typer.Option(None, help="Projeto GCP (padrão: bq_project do settings.yaml)"),
+    dataset: str = typer.Option(None, help="Dataset de destino (padrão: bq_dataset)"),
+) -> None:
+    """Publica a gold do DuckDB local no BigQuery (funciona no Sandbox gratuito)."""
+    from .publish import publish as publish_gold
+
+    s = load_settings()
+    project = project or s.bq_project
+    if not project:
+        raise typer.BadParameter("Defina bq_project no settings.yaml ou use --project")
+    db_path = s.data_dir / "warehouse.duckdb"
+    if not db_path.exists():
+        raise typer.BadParameter(f"{db_path} não existe: rode `make dbt` antes")
+    results = publish_gold(db_path, s.data_dir / "tmp" / "publish", project, dataset or s.bq_dataset,
+                           s.bq_location, s.bq_account)
+    log.info("%d tabelas publicadas em %s.%s", len(results), project, dataset or s.bq_dataset)
+
+
 def _convert_job(zip_path: str, entity: str, out_path: str, month: str):
     # roda em outro processo: devolve só tipos simples
     r = convert_zip(Path(zip_path), entity, Path(out_path), month)
