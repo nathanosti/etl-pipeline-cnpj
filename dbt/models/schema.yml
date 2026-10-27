@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: stg_estabelecimentos
+    description: Estabelecimentos do snapshot (ref_month) tipados
+    columns:
+      - name: cnpj
+        data_tests: [not_null]
+      - name: situacao_cadastral
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [NULA, ATIVA, SUSPENSA, INAPTA, BAIXADA]
+
+  - name: stg_cnaes
+    columns:
+      - name: codigo
+        data_tests: [unique, not_null]
+
+  - name: leads_agro
+    description: >
+      Prospecção agro (rascunho): estabelecimentos com CNAE principal ou secundário
+      no seed cnaes_alvo. Colunas finais dependem da definição do dashboard.
+    columns:
+      - name: cnpj
+        data_tests: [unique, not_null]
+      - name: match_tipo
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [principal, secundario]
+
+seeds:
+  - name: cnaes_alvo
+    description: CNAEs que definem o público-alvo. Editar e rodar `make dbt` para mudar o recorte.
+    config:
+      column_types:
+        cnae: varchar
+    columns:
+      - name: cnae
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_cnaes')
+                field: codigo

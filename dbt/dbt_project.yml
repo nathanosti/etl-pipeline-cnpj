@@ -1,0 +1,27 @@
+name: cnpj
+version: "0.1.0"
+profile: cnpj
+config-version: 2
+
+model-paths: [models]
+seed-paths: [seeds]
+macro-paths: [macros]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  # Mês do snapshot da Receita (YYYY-MM). Vazio = mês mais recente presente no bronze.
+  ref_month: ""
+
+models:
+  cnpj:
+    silver:
+      +schema: silver
+      +materialized: view
+    gold:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  cnpj:
+    +schema: ref

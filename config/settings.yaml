@@ -1,0 +1,17 @@
+# Configuração da ingestão. Variáveis de ambiente CNPJ_<CHAVE> têm precedência
+# (ex.: CNPJ_DATA_DIR=/Volumes/externo/cnpj).
+
+# WebDAV público da Receita Federal (usuário = token do compartilhamento, senha vazia)
+webdav_url: https://arquivos.receitafederal.gov.br/public.php/webdav
+webdav_token: YggdBLfdninEJX9
+
+# Raiz local dos dados (landing = zips originais, bronze = Parquet, ops = manifesto)
+data_dir: ./data
+
+# Downloads simultâneos e processos de conversão em paralelo.
+# 2 downloads: o gargalo é o servidor da Receita, mais conexões só aumentam os travamentos.
+download_workers: 2
+convert_workers: 4
+
+# Apaga o zip depois de convertido com sucesso (economiza ~8 GB por mês)
+delete_zips_after_convert: false

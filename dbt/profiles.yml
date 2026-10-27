@@ -1,0 +1,12 @@
+cnpj:
+  target: local
+  outputs:
+    # Fase 1: tudo local em DuckDB, lendo o bronze (Parquet) direto
+    local:
+      type: duckdb
+      path: "{{ env_var('CNPJ_DATA_DIR') }}/warehouse.duckdb"
+      threads: 4
+      settings:
+        memory_limit: "8GB"
+        # spill vai para <path>.tmp (data/warehouse.duckdb.tmp); não definir temp_directory:
+        # o dbt-duckdb reaplica settings por cursor e o DuckDB recusa trocar o diretório.

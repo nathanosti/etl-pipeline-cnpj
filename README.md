@@ -1,0 +1,70 @@
+# ETL CNPJ — prospecção agro
+
+Pipeline dos dados abertos de CNPJ da Receita Federal para prospectar clientes por CNAE
+(hoje: 4683-4/00, 4623-1/08, 4692-3/00 — principal **ou** secundário).
+
+A base **inteira** é ingerida; o recorte por CNAE só acontece na gold, a partir de
+`dbt/seeds/cnaes_alvo.csv`. Mudar o público = editar o seed e rodar `make dbt`.
+
+## Fase 1 (atual): local, sem nuvem paga
+
+```
+Receita (WebDAV, zips mensais ~7,8 GB)
+  └─ cnpj-ingest ─► data/landing/receita/ref_month=YYYY-MM/*.zip      (originais)
+                 └► data/bronze/receita/<entidade>/ref_month=YYYY-MM/*.parquet  (tudo STRING)
+  └─ dbt + DuckDB ─► data/warehouse.duckdb
+                      silver.stg_*            (views tipadas, snapshot do mês)
+                      gold.leads_agro         (recorte pelos CNAEs alvo)
+                      gold.agg_leads_uf_municipio
+                      gold.leads_socios       (quadro societário dos leads)
+  └─ Streamlit ─► dashboard/app.py  (painel local, lê a gold)
+```
+
+Próximo passo: publicar só a gold no BigQuery Sandbox (gratuito) para Looker Studio / Power BI.
+O desenho completo para quando houver GCP com billing está em [docs/PLANO_ETL_GCP.md](docs/PLANO_ETL_GCP.md).
+
+## Uso
+
+Requer [uv](https://docs.astral.sh/uv/) (`brew install uv`). Espaço: ~15 GB por mês (zips + Parquet);
+use `--delete-zips` ou `delete_zips_after_convert: true` para ficar em ~7 GB.
+
+```bash
+make setup          # instala dependências (Python 3.12 via uv)
+make test           # testes unitários
+make ingest-smoke   # só tabelas de domínio, segundos
+make ingest         # mês completo mais recente (ou MONTH=2026-10)
+make dbt            # silver + gold + testes
+make status         # arquivos do mês e status no manifesto
+make dash           # painel local em http://localhost:8501
+```
+
+A ingestão é idempotente: o manifesto `data/ops/ingestion_files.json` guarda etag/tamanho
+de cada arquivo, então rodar de novo só processa o que mudou. Downloads interrompidos são
+retomados (HTTP Range).
+
+Consultar direto:
+
+```bash
+uv run python -c "import duckdb; print(duckdb.connect('data/warehouse.duckdb', read_only=True).sql(
+  'select uf, count(*) n from gold.leads_agro where is_ativa group by 1 order by 2 desc'))"
+```
+
+(ou abra `data/warehouse.duckdb` no DBeaver / CLI do DuckDB, `brew install duckdb`).
+
+## Painel (`make dash`)
+
+- **Filtros:** situação (padrão ATIVA), CNAE alvo como principal/secundário, CNAE, UF, município,
+  porte, matriz/filial, Simples, exigir e-mail/telefone, ano de abertura.
+- **KPIs:** estabelecimentos, empresas (CNPJ raiz), % com e-mail, % com telefone, abertas em 12 meses.
+- **Mercado:** leads por UF (principal × secundário), top 15 municípios, por CNAE, por porte, aberturas por ano.
+- **Lista de leads:** busca, export CSV (abre no Excel), e ficha ao clicar numa linha com
+  dados cadastrais, contato, quadro societário e outros estabelecimentos da mesma empresa.
+
+O painel abre o DuckDB em modo leitura só durante cada consulta, então dá para rodar
+`make dbt` com ele aberto (depois, recarregue o cache com a tecla `C` no painel).
+
+## Observações sobre os dados
+
+- `municipio_codigo` é o código da Receita (TOM), **não** o código IBGE.
+- Situação cadastral: 01 NULA, 02 ATIVA, 03 SUSPENSA, 04 INAPTA, 08 BAIXADA.
+- Linhas malformadas são puladas e contadas no manifesto (`invalid_rows`, com amostra).

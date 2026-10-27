@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Arquivos de dados abertos do CNPJ convertidos para Parquet (todas as colunas STRING)
+    meta:
+      external_location: "read_parquet('{{ env_var('CNPJ_DATA_DIR') }}/bronze/receita/{name}/*/*.parquet', hive_partitioning = false)"
+    tables:
+      - name: estabelecimentos
+      - name: empresas
+      - name: simples
+      - name: socios
+      - name: cnaes
+      - name: municipios
+      - name: naturezas
+      - name: motivos
+      - name: paises
+      - name: qualificacoes
